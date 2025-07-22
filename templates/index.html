@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dynamic Calendar</title>
+    <style>
+        body {
+            background-color: #eaf3f7;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        .calendar-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 50px);
+            gap: 10px;
+            background-color: #d9edf7;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .calendar div {
+            padding: 10px;
+            background-color: #cfe8f0;
+            border-radius: 6px;
+            transition: transform 0.2s, background-color 0.2s;
+            cursor: pointer;
+        }
+        .calendar div:hover {
+            background-color: #a7d9f2;
+            transform: scale(1.1);
+        }
+        .calendar .today {
+            background-color: #4CAF50 !important;
+            color: white;
+        }
+        .calendar .noted {
+            background-color: #f7c59f !important;
+        }
+        .nav-buttons {
+            margin: 15px;
+        }
+        .nav-buttons button {
+            background-color: #337ab7;
+            color: white;
+            padding: 8px 16px;
+            margin: 0 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+        .nav-buttons button:hover {
+            background-color: #23527c;
+        }
+        .quote {
+            margin-top: auto;
+            padding: 15px;
+            background-color: #dff0ea;
+            font-style: italic;
+            opacity: 0;
+            animation: fadeIn 2s ease-in forwards;
+            width: 100%;
+        }
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        #noteModal {
+            display: none;
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px #888;
+            z-index: 1000;
+        }
+        #noteModal input, #noteModal select {
+            margin: 5px;
+            padding: 5px;
+        }
+        #noteModal button {
+            margin: 5px;
+        }
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 999;
+        }
+        #note-display {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 6px;
+            width: 300px;
+            margin-left: auto;
+            margin-right: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ month_name }} {{ year }}</h1>
+    <div>{{ today.strftime('%A, %d %B %Y') }}</div>
+
+    <div class="nav-buttons">
+        <a href="/?month={{ prev_month }}&year={{ prev_year }}"><button>&lt;</button></a>
+        <a href="/?month={{ next_month }}&year={{ next_year }}"><button>&gt;</button></a>
+    </div>
+
+    <div class="calendar-container">
+        <div class="calendar">
+            {% for day in calendar.day_abbr %}
+                <div><strong>{{ day }}</strong></div>
+            {% endfor %}
+            {% for week in cal %}
+                {% for day in week %}
+                    {% if day == 0 %}
+                        <div></div>
+                    {% else %}
+                        {% set key = "%02d/%02d" % (day, month) %}
+                        <div onclick="showNote({{ day }}, {{ month }})"
+                             class="{% if today.day == day and today.month == month and today.year == year %}today{% elif key in notes %}noted{% endif %}">
+                            {{ day }}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <div id="note-display">Click a day to see its note.</div>
+
+    <div style="margin-top: 20px;">
+        <button onclick="openNoteModal()">Add Note +</button>
+    </div>
+
+    <div id="overlay" onclick="closeNoteModal()"></div>
+    <div id="noteModal">
+        <h3>Add/Delete Note</h3>
+        <form method="post" action="/add_note">
+            <input type="number" id="note-day" name="dd" min="1" max="31" placeholder="Day" required>
+            <select id="note-month" name="mm" required>
+                {% for i in range(1, 13) %}
+                    <option value="{{ i }}">{{ calendar.month_name[i] }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="note" placeholder="Note" required>
+            <button type="submit">Add</button>
+        </form>
+        <form method="post" action="/delete_note">
+            <input type="hidden" id="del-day" name="dd">
+            <input type="hidden" id="del-month" name="mm">
+            <button type="submit">Delete Note</button>
+        </form>
+        <button onclick="closeNoteModal()">Close</button>
+    </div>
+
+    <div class="quote">
+        {{ quote }}
+    </div>
+
+    <script>
+        function openNoteModal(day = null, month = null) {
+            if (day && month) {
+                document.getElementById('note-day').value = day;
+                document.getElementById('note-month').value = month;
+                document.getElementById('del-day').value = day;
+                document.getElementById('del-month').value = month;
+            }
+            document.getElementById('noteModal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function closeNoteModal() {
+            document.getElementById('noteModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function showNote(day, month) {
+            const key = ("0" + day).slice(-2) + "/" + ("0" + month).slice(-2);
+            const notes = JSON.parse('{{ notes|tojson|safe }}');
+            const note = notes[key] || "No note for this day.";
+            document.getElementById('note-display').innerText = "Note for " + key + ":\n" + note;
+            openNoteModal(day, month);
+        }
+    </script>
+</body>
+</html>
